@@ -445,7 +445,7 @@ function! s:IdrisReloadGuardResponse(reaction, file, req, command)
         let s:loaded_file = a:file
         call a:reaction()
     else
-        echoerr a:command[1]
+        " echoerr a:command[1]
         " echoerr printf("%s", a:command)
         " let text = a:command[1]
     endif
