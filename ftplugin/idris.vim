@@ -70,8 +70,13 @@ let s:callbacks = {
 
 
 function! IdrisConnect()
+    let base_cmd = split(s:idris_prompt)[0]
+    silent! let idris_path = system('command -v '.base_cmd)
+    if idris_path !~ '\w\+'
+        call IWrite(base_cmd." not found")
+        return 0
+    endif
     let s:job = jobstart(s:idris_prompt, s:callbacks)
-    " let s:channel = job_getchannel(s:job)
 endfunction
 
 function! IdrisReconnect(prompt)
