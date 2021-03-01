@@ -48,7 +48,7 @@ function! IdrisPending()
     return s:pending_requests
 endfunction
 function! s:IdrisHandle(channel, msg, event)
-  let s:output = (s:output . join(a:msg))
+  let s:output .= join(a:msg, '')
   while 6 <= strlen(s:output)
     let kount = str2nr(strpart(s:output, 0, 6), 16)
     if kount + 6 <= strlen(s:output)
@@ -201,7 +201,7 @@ function! s:FromSExpr(msg)
     let sexpr = []
     let context = []
     while 1
-        let start = start + strlen(matchstr(a:msg, '^\_s\+', start))
+        let start = start + strlen(matchstr(a:msg, '^\(\_s\|\)\+', start))
         let head = matchstr(a:msg, '^:[:\-a-zA-Z]\+\|^(\|^)\|^\d\+\|^nil\|^"', start)
         if head =~ '^('
             call add(context, sexpr)
@@ -365,7 +365,7 @@ function! IWrite(str)
     let save_cursor = getcurpos()
     b idris-response
     %delete
-    let resp = split(a:str, '\n')
+    let resp = split(a:str, '')
     let n = len(resp)
     let c = 0
     while c < n
@@ -384,7 +384,7 @@ function! IAppend(str)
     let win_view = winsaveview()
     let save_cursor = getcurpos()
     b idris-response
-    let resp = split(a:str, '\n')
+    let resp = split(a:str, '')
     call append(line('$'), resp)
     b #
     call setpos('.', save_cursor)
