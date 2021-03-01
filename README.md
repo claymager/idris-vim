@@ -1,5 +1,7 @@
-Idris mode for vim
-==================
+Idris2 mode for neovim
+======================
+
+This is highly unstable, and will be rebased whenever I feel like.
 
 This is an [Idris][] mode for vim which features syntax highlighting, indentation
 and optional syntax checking via [Syntastic][]. If you need a REPL I recommend using
