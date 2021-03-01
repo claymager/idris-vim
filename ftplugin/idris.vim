@@ -27,7 +27,7 @@ else
 endif
 
 let s:job = v:null
-let s:channel = v:null
+" let s:channel = v:null
 let s:output = ""
 let s:protocol_version = 0
 let s:after_connection = []
@@ -39,17 +39,39 @@ function! IdrisStatus()
     if s:job == v:null
         return "closed"
     else
-        return ch_status(s:channel)
+        return "open"
+        " return ch_status(s:channel)
     endif
 endfunction
 
 function! IdrisPending()
     return s:pending_requests
 endfunction
+function! s:IdrisHandle(channel, msg, event)
+  let s:output = (s:output . join(a:msg))
+  while 6 <= strlen(s:output)
+    let kount = str2nr(strpart(s:output, 0, 6), 16)
+    if kount + 6 <= strlen(s:output)
+        let data = strpart(s:output, 6, kount)
+        let s:output = strpart(s:output, 6+kount)
+        call s:IdrisMessage(s:FromSExpr(data))
+    else
+        break
+    endif
+  endwhile
+endfunction
+
+
+let s:callbacks = {
+\ 'on_stdout' : function('s:IdrisHandle'),
+\ 'on_stderr' : function('s:IdrisHandle'),
+\ }
+" \ 'on_exit' : function('s:IdrisHandle')
+
 
 function! IdrisConnect()
-    let s:job = job_start(s:idris_prompt, {'mode':'raw', 'drop':'never', 'callback':function("s:IdrisHandle")})
-    let s:channel = job_getchannel(s:job)
+    let s:job = jobstart(s:idris_prompt, s:callbacks)
+    " let s:channel = job_getchannel(s:job)
 endfunction
 
 function! IdrisReconnect(prompt)
@@ -61,28 +83,14 @@ function! IdrisReconnect(prompt)
 endfunction
 
 function! IdrisDisconnect()
-    call ch_close(s:channel)
-    call job_stop(s:job)
+    " call ch_close(s:channel)
+    call jobstop(s:job)
     let s:output = ""
     let s:protocol_version = 0
     let s:pending_requests = {}
     let s:loaded_file = ""
     let s:next_message_id = 1
     let s:after_connection = []
-endfunction
-
-function! s:IdrisHandle(channel, msg)
-  let s:output = (s:output . a:msg)
-  while 6 <= strlen(s:output)
-    let kount = str2nr(strpart(s:output, 0, 6), 16)
-    if kount + 6 <= strlen(s:output)
-        let data = strpart(s:output, 6, kount)
-        let s:output = strpart(s:output, 6+kount)
-        call s:IdrisMessage(s:FromSExpr(data))
-    else
-        break
-    endif
-  endwhile
 endfunction
 
 " Message handling
@@ -184,7 +192,7 @@ let s:idris_default_response = {'ok':function("DefaultResponse")}
 " Protocol encoding/decoding routines
 function! s:Write6HexMessage(msg)
     let kount = printf('%06x', strlen(a:msg))
-    call ch_sendraw(s:channel, kount . a:msg)
+    call chansend(s:job, kount . a:msg)
 endfunction
 
 " The s-expr handling
@@ -290,7 +298,7 @@ function! s:IdrisCmd(...)
             for item in a:000[2:argc-2]
                 call add(form, item)
             endfor
-            if type(req) == v:t_none
+            if type(req) == v:null
                 call IdrisSendMessage(form)
             else
                 call IdrisRequest(form, req)
