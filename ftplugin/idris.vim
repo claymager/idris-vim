@@ -297,27 +297,24 @@ function! s:PrintToBufferResponse(req, command)
     endif
 endfunction
 let s:print_response = {'ok':function("s:PrintToBufferResponse")}
-
-function! DefaultResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
-endfunction
-let s:idris_default_response = {'ok':function("DefaultResponse")}
+let s:idris_default_response = s:print_response
 "
 " Text near cursor position that needs to be passed to a command.
 " Refinment of `expand(<cword>)` to accomodate differences between
 " a (n)vim word and what Idris requires.
 function! s:currentQueryObject()
-  let word = expand("<cword>")
-  if word =~ '^?'
-    " Cut off '?' that introduces a hole identifier.
-    let word = strpart(word, 1)
+  let word = expand('<cWORD>')
+  if word =~ '^[^a-zA-Z0-9]\+$'
+      "Idris won't recognize an operator wrapped in parentheses
+      if word =~ '^(.\+)$'
+          let word = word[1:-2]
+      endif
+  else
+    let word = expand("<cword>")
+    if word =~ '^?'
+      " Cut off '?' that introduces a hole identifier.
+      let word = strpart(word, 1)
+    endif
   endif
   return word
 endfunction
@@ -419,7 +416,7 @@ endfunction
 function! IdrisReload(q)
   w
   let file = expand("%:p")
-  call s:IdrisCmd(s:InAnyIdris, "load-file", file, s:idris_default_response)
+  call s:IdrisCmd(s:InAnyIdris, "load-file", file, s:print_response)
 endfunction
 
 function! s:IdrisMustReload()
