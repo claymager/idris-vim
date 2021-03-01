@@ -27,7 +27,6 @@ else
 endif
 
 let s:job = v:null
-" let s:channel = v:null
 let s:output = ""
 let s:protocol_version = 0
 let s:after_connection = []
@@ -40,7 +39,6 @@ function! IdrisStatus()
         return "closed"
     else
         return "open"
-        " return ch_status(s:channel)
     endif
 endfunction
 
@@ -61,13 +59,10 @@ function! s:IdrisHandle(channel, msg, event)
   endwhile
 endfunction
 
-
 let s:callbacks = {
 \ 'on_stdout' : function('s:IdrisHandle'),
 \ 'on_stderr' : function('s:IdrisHandle'),
 \ }
-" \ 'on_exit' : function('s:IdrisHandle')
-
 
 function! IdrisConnect()
     let base_cmd = split(s:idris_prompt)[0]
@@ -88,7 +83,6 @@ function! IdrisReconnect(prompt)
 endfunction
 
 function! IdrisDisconnect()
-    " call ch_close(s:channel)
     call jobstop(s:job)
     let s:output = ""
     let s:protocol_version = 0
