@@ -446,7 +446,7 @@ endfunction
 function! IdrisShowDoc()
   if IdrisReloadGuard(function("IdrisShowDoc"))
     let word = expand("<cword>")
-    call s:IdrisCmd(s:InIdris1, "docs-for", word, s:print_response)
+    call s:IdrisCmd(s:InAnyIdris, "docs-for", word, s:print_response)
   endif
 endfunction
 
@@ -478,8 +478,10 @@ endfunction
 function! s:LemmaResponse(req, command)
     let name = a:command[0]['command']
     if name == 'ok'
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
+        let vals = split(a:command[1], '')
+        let typeDec = vals[0]
+        let use = vals[1]
+        call IAppend(printf("%s", vals))
         " [{'command': 'metavariable-lemma'},
         "     [{'command': 'replace-metavariable'}, 'ohetui k'],
         "     [{'command': 'definition-type'}, 'ohetui : (k : Nat) -> Nat']]
@@ -493,7 +495,7 @@ function! IdrisMakeLemma()
     if IdrisReloadGuard(function("IdrisMakeLemma"))
         let cline = line(".")
         let word = s:currentQueryObject()
-        call s:IdrisCmd(s:InIdris1, "make-lemma", cline, word, {'ok':function("s:LemmaResponse")})
+        call s:IdrisCmd(s:InAnyIdris, "make-lemma", cline, word, {'ok':function("s:LemmaResponse")})
     endif
 endfunction
 
@@ -589,9 +591,9 @@ function! IdrisAddClause(proof)
     let cline = line(".")
     let word = expand("<cword>")
     if (a:proof==0)
-      call s:IdrisCmd(s:InIdris1, "add-clause", cline, word, {'ok':function("s:AddClauseResponse"), 'cline':cline})
+      call s:IdrisCmd(s:InAnyIdris, "add-clause", cline, word, {'ok':function("s:AddClauseResponse"), 'cline':cline})
     else
-      call s:IdrisCmd(s:InIdris1, "add-proof-clause", cline, word, {'ok':function("s:AddClauseResponse"), 'cline':cline})
+      call s:IdrisCmd(s:InAnyIdris, "add-proof-clause", cline, word, {'ok':function("s:AddClauseResponse"), 'cline':cline})
     endif
   endif
 endfunction
@@ -600,7 +602,7 @@ function! s:EvalResponse(req, command)
     let name = a:command[0]['command']
     if name == 'ok'
         let text = a:command[1]
-        call IWrite(printf("%s", text))
+        call IWrite(printf("%s", ' = '.text))
     else
         let text = a:command[1]
         call IAppend(printf("%s", text))
@@ -610,7 +612,8 @@ endfunction
 function! IdrisEval()
   if IdrisReloadGuard(function("IdrisEval"))
      let expr = input ("Expression: ")
-      call s:IdrisCmd(s:InIdris1, "interpret", expr, {'ok':function("s:EvalResponse")})
+      call s:IdrisCmd(s:InAnyIdris, "interpret", expr, {'ok':function("s:EvalResponse")})
+      "TODO : Prints `it`, but not `stdout`
   endif
 endfunction
 
