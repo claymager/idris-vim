@@ -1,3 +1,4 @@
+" {{{ boilerplate
 if bufname('%') == "idris-response"
   finish
 endif
@@ -5,6 +6,13 @@ endif
 if exists("b:did_ftplugin")
   finish
 endif
+
+let idris_response = 0
+let b:did_ftplugin = 1
+
+" }}}
+
+" {{{ Recommended settings
 
 setlocal shiftwidth=2
 setlocal tabstop=2
@@ -16,9 +24,6 @@ setlocal commentstring=--%s
 setlocal iskeyword+=?
 setlocal wildignore+=*.ibc
 
-let idris_response = 0
-let b:did_ftplugin = 1
-
 " The connection mamagement logic.
 if exists("g:idris_default_prompt")
     let s:idris_prompt = g:idris_default_prompt
@@ -26,6 +31,25 @@ else
     let s:idris_prompt = "idris --ide-mode"
 endif
 
+function! IdrisDocFold(lineNum)
+  let line = getline(a:lineNum)
+
+  if line =~ "^\s*|||"
+    return "1"
+  endif
+
+  return "0"
+endfunction
+
+function! IdrisFold(lineNum)
+  return IdrisDocFold(a:lineNum)
+endfunction
+
+setlocal foldmethod=expr
+setlocal foldexpr=IdrisFold(v:lnum)
+" }}}
+
+" {{{ Connection protocol
 let s:job = v:null
 let s:output = ""
 let s:protocol_version = 0
@@ -45,6 +69,7 @@ endfunction
 function! IdrisPending()
     return s:pending_requests
 endfunction
+
 function! s:IdrisHandle(channel, msg, event)
   let s:output .= join(a:msg, '')
   while 6 <= strlen(s:output)
@@ -91,7 +116,9 @@ function! IdrisDisconnect()
     let s:next_message_id = 1
     let s:after_connection = []
 endfunction
+" }}}
 
+" {{{ Message syntax
 " Message handling
 function! s:IdrisMessage(msg)
     if s:IsSyntaxError(a:msg)
@@ -151,50 +178,13 @@ function! s:SendingGuard(resumption)
     endif
 endfunction
 
-function! IdrisSendMessage(command)
-    let this_message_id = s:next_message_id
-    let msg = s:ToSExpr([a:command, this_message_id]) . "\n"
-    let s:next_message_id = s:next_message_id + 1
-    call s:Write6HexMessage(msg)
-    return this_message_id
-endfunction
-
-function! IdrisRequest(command, req)
-    let s:pending_requests[s:next_message_id] = a:req
-    call IdrisSendMessage(a:command)
-endfunction
-
-function! s:PrintToBufferResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        call IWrite(printf("%s", text))
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
-endfunction
-let s:print_response = {'ok':function("s:PrintToBufferResponse")}
-
-function! DefaultResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
-endfunction
-let s:idris_default_response = {'ok':function("DefaultResponse")}
-
 " Protocol encoding/decoding routines
 function! s:Write6HexMessage(msg)
     let kount = printf('%06x', strlen(a:msg))
     call chansend(s:job, kount . a:msg)
 endfunction
 
-" The s-expr handling
+"   {{{ S:Expr
 function! s:FromSExpr(msg)
     let start = 0
     let sexpr = []
@@ -278,6 +268,65 @@ function! s:ToSExpr(item)
     endif
 endfunction
 
+" }}}
+" }}}
+
+" {{{ IDE Commands
+" {{{ Helpers
+function! IdrisSendMessage(command)
+    let this_message_id = s:next_message_id
+    let msg = s:ToSExpr([a:command, this_message_id]) . "\n"
+    let s:next_message_id = s:next_message_id + 1
+    call s:Write6HexMessage(msg)
+    return this_message_id
+endfunction
+
+function! IdrisRequest(command, req)
+    let s:pending_requests[s:next_message_id] = a:req
+    call IdrisSendMessage(a:command)
+endfunction
+
+function! s:PrintToBufferResponse(req, command)
+    let name = a:command[0]['command']
+    if name == 'ok'
+        let text = a:command[1]
+        call IWrite(printf("%s", text))
+    else
+        let text = a:command[1]
+        call IAppend(printf("%s", text))
+    endif
+endfunction
+let s:print_response = {'ok':function("s:PrintToBufferResponse")}
+
+function! DefaultResponse(req, command)
+    let name = a:command[0]['command']
+    if name == 'ok'
+        let text = a:command[1]
+        call IAppend(printf("%s", text))
+    else
+        let text = a:command[1]
+        call IAppend(printf("%s", text))
+    endif
+endfunction
+let s:idris_default_response = {'ok':function("DefaultResponse")}
+"
+" Text near cursor position that needs to be passed to a command.
+" Refinment of `expand(<cword>)` to accomodate differences between
+" a (n)vim word and what Idris requires.
+function! s:currentQueryObject()
+  let word = expand("<cword>")
+  if word =~ '^?'
+    " Cut off '?' that introduces a hole identifier.
+    let word = strpart(word, 1)
+  endif
+  return word
+endfunction
+
+" }}}
+
+" {{{ Permission logic
+" may be removed: only interested in Idris2
+
 " The first and second Idris protocol were simple enough that
 " this can be rewritten on subsequent releases.
 let s:InAnyIdris = 0
@@ -306,35 +355,9 @@ function! s:IdrisCmd(...)
     endif
 endfunction
 
-" Text near cursor position that needs to be passed to a command.
-" Refinment of `expand(<cword>)` to accomodate differences between
-" a (n)vim word and what Idris requires.
-function! s:currentQueryObject()
-  let word = expand("<cword>")
-  if word =~ '^?'
-    " Cut off '?' that introduces a hole identifier.
-    let word = strpart(word, 1)
-  endif
-  return word
-endfunction
+" }}}
 
-function! IdrisDocFold(lineNum)
-  let line = getline(a:lineNum)
-
-  if line =~ "^\s*|||"
-    return "1"
-  endif
-
-  return "0"
-endfunction
-
-function! IdrisFold(lineNum)
-  return IdrisDocFold(a:lineNum)
-endfunction
-
-setlocal foldmethod=expr
-setlocal foldexpr=IdrisFold(v:lnum)
-
+" {{{ IdrisResponse
 function! IdrisResponseWin()
   if (!bufexists("idris-response"))
     botright 10split
@@ -390,7 +413,9 @@ function! IAppend(str)
     call winrestview(win_view)
   endif
 endfunction
+" }}}
 
+" {{{ Implemented commands
 function! IdrisReload(q)
   w
   let file = expand("%:p")
@@ -616,6 +641,10 @@ function! IdrisEval()
   endif
 endfunction
 
+" }}}
+" }}}
+
+" {{{ Key maps
 nnoremap <buffer> <silent> <LocalLeader>t :call IdrisShowType()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>r :call IdrisReload(0)<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>c :call IdrisCaseSplit()<ENTER>
@@ -644,6 +673,11 @@ menu Idris.Add\ missing\ cases <LocalLeader>m
 menu Idris.Proof\ Search <LocalLeader>o
 menu Idris.Proof\ Search\ with\ hints <LocalLeader>p
 
+" }}}
+
+" {{{ Autocommands
+
 au BufHidden idris-response call IdrisHideResponseWin()
 au BufEnter idris-response call IdrisShowResponseWin()
 au BufWrite *.idr call s:IdrisMustReload()
+" }}}
