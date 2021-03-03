@@ -443,31 +443,46 @@ function! s:IdrisReloadGuardResponse(reaction, file, req, command)
         call a:reaction()
     else
         " echoerr a:command[1]
-        " echoerr printf("%s", a:command)
-        " let text = a:command[1]
     endif
 endfunction
 
-function! IdrisReloadToLine(cline)
-  return IdrisReload(1)
-endfunction
-
-function! IdrisQueryObject()
-    return s:currentQueryObject()
+function! s:CurrWordInfo(command)
+    let word = s:currentQueryObject()
+    call s:IdrisCmd(s:InAnyIdris, a:command, word, s:print_response)
 endfunction
 
 function! IdrisShowType()
   if IdrisReloadGuard(function("IdrisShowType"))
-      let word = s:currentQueryObject()
-      " let cline = line(".")
-      call s:IdrisCmd(s:InAnyIdris, "type-of", word, s:print_response)
+    call s:CurrWordInfo("type-of")
   endif
 endfunction
 
 function! IdrisShowDoc()
   if IdrisReloadGuard(function("IdrisShowDoc"))
-    let word = expand("<cword>")
-    call s:IdrisCmd(s:InAnyIdris, "docs-for", word, s:print_response)
+    call s:CurrWordInfo("docs-for")
+  endif
+endfunction
+
+function! IdrisPrintDef()
+  " upstream not-implemented
+  if IdrisReloadGuard(function("IdrisPrintDef"))
+    call s:CurrWordInfo("print-definition")
+  endif
+endfunction
+
+let s:last_namespace = ""
+function! IdrisBrowseNamespace()
+  if IdrisReloadGuard(function("IdrisBrowseNamespace"))
+    let word = expand("<cWORD>")
+    " At least one division, and each sub-namespace starts with a capital
+    if word =~ '[A-Z]\w*\.\([A-Z]\w*\.\)*\w*'
+        " cursor on a namespace
+        let s:last_namespace = word
+    else
+        " not over namespace; show last used
+        let word = s:last_namespace
+    endif
+    call s:IdrisCmd(s:InIdris2, "browse-namespace", word, s:print_response)
   endif
 endfunction
 
@@ -562,36 +577,38 @@ function! s:ReplaceLineResponse(req, command)
     let name = a:command[0]['command']
     if name == 'ok'
         let text = a:command[1]
-        let resp = split(text, '\n')
+        let resp = split(text, '')
         call append(a:req.cline, resp)
         execute a:req.cline . 'delete'
+        call search(a:req.cursor_on)
     else
         let text = a:command[1]
         call IAppend(printf("%s", text))
     endif
 endfunction
 
+function s:ReplaceLineCmd(command, cursor_on)
+    let cline = line('.')
+    let word = s:currentQueryObject()
+    let req = { 'ok':function("s:ReplaceLineResponse"), 'cline':cline, 'cursor_on':(a:cursor_on) }
+    call s:IdrisCmd(s:InAnyIdris, a:command, cline, word, req)
+endfunction
+
 function! IdrisCaseSplit()
   if IdrisReloadGuard(function("IdrisCaseSplit"))
-      let cline = line(".")
-      let word = expand("<cword>")
-      call s:IdrisCmd(s:InAnyIdris, "case-split", cline, word, {'ok':function("s:ReplaceLineResponse"), 'cline':cline})
+      call s:ReplaceLineCmd("case-split", "?")
   endif
 endfunction
 
 function! IdrisMakeWith()
   if IdrisReloadGuard(function("IdrisMakeWith"))
-      let cline = line(".")
-      let word = expand("<cword>")
-      call s:IdrisCmd(s:InAnyIdris, "make-with", cline, word, {'ok':function("s:ReplaceLineResponse"), 'cline':cline})
+      call s:ReplaceLineCmd("make-with", "_")
   endif
 endfunction
 
 function! IdrisMakeCase()
   if IdrisReloadGuard(function("IdrisMakeCase"))
-      let cline = line(".")
-      let word = s:currentQueryObject()
-      call s:IdrisCmd(s:InAnyIdris, "make-case", cline, word, {'ok':function("s:ReplaceLineResponse"), 'cline':cline})
+      call s:ReplaceLineCmd("make-case", "_")
   endif
 endfunction
 
@@ -600,11 +617,12 @@ function! s:AddClauseResponse(req, command)
     if name == 'ok'
         let text = a:command[1]
         normal }b
-        call append(line('.'), split(text, '\n'))
+        call append(line('.'), split(text, ''))
     else
         let text = a:command[1]
         call IAppend(printf("%s", text))
     endif
+    call search("?")
 endfunction
 
 function! IdrisAddClause(proof)
@@ -657,7 +675,10 @@ nnoremap <buffer> <silent> <LocalLeader>e :call IdrisEval()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>w 0:call IdrisMakeWith()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>mc :call IdrisMakeCase()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>i 0:call IdrisResponseWin()<ENTER>
-nnoremap <buffer> <silent> <LocalLeader>h :call IdrisShowDoc()<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>hh :call IdrisShowDoc()<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>n :call IdrisBrowseNamespace()<ENTER>
+" Missing in engine
+" nnoremap <buffer> <silent> <LocalLeader>d :call IdrisPrintDef()<ENTER>
 
 menu Idris.Reload <LocalLeader>r
 menu Idris.Show\ Type <LocalLeader>t
