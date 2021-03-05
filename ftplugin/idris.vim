@@ -272,7 +272,7 @@ endfunction
 " }}}
 
 " {{{ IDE Commands
-" {{{ Helpers
+" {{{ Communication
 function! IdrisSendMessage(command)
     let this_message_id = s:next_message_id
     let msg = s:ToSExpr([a:command, this_message_id]) . "\n"
@@ -284,39 +284,6 @@ endfunction
 function! IdrisRequest(command, req)
     let s:pending_requests[s:next_message_id] = a:req
     call IdrisSendMessage(a:command)
-endfunction
-
-function! s:PrintToBufferResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        call IWrite(printf("%s", text))
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
-endfunction
-let s:print_response = {'ok':function("s:PrintToBufferResponse")}
-let s:idris_default_response = s:print_response
-"
-" Text near cursor position that needs to be passed to a command.
-" Refinment of `expand(<cword>)` to accomodate differences between
-" a (n)vim word and what Idris requires.
-function! s:currentQueryObject()
-  let word = expand('<cWORD>')
-  if word =~ '^[^a-zA-Z0-9]\+$'
-      "Idris won't recognize an operator wrapped in parentheses
-      if word =~ '^(.\+)$'
-          let word = word[1:-2]
-      endif
-  else
-    let word = expand("<cword>")
-    if word =~ '^?'
-      " Cut off '?' that introduces a hole identifier.
-      let word = strpart(word, 1)
-    endif
-  endif
-  return word
 endfunction
 
 " }}}
@@ -412,7 +379,56 @@ function! IAppend(str)
 endfunction
 " }}}
 
-" {{{ Implemented commands
+" {{{ Commands
+" {{{ Command helpers
+"
+" Text near cursor position that needs to be passed to a command.
+function! s:currentQueryObject()
+  let word = expand('<cWORD>')
+  " First, check whether we are over an operator
+  if word =~ '^[^a-zA-Z0-9]\+$'
+      "I dris won't recognize an operator wrapped in parentheses
+      if word =~ '^(.\+)$'
+          let word = word[1:-2]
+      endif
+  else
+    let word = expand("<cword>")
+    if word =~ '^?'
+      " Cut off '?' that introduces a hole identifier.
+      let word = strpart(word, 1)
+    endif
+  endif
+  return word
+endfunction
+
+function! s:generic_response(req, command)
+    let name = a:command[0]['command']
+    if name == 'ok'
+        let cmd = a:command[1]
+        let response = s:IsList(cmd) ? cmd : split(cmd, '')
+        call a:req.on_success(a:req, cmd)
+    else
+        let text = a:command[1]
+        call IAppend(printf("%s", text))
+    endif
+endfunction
+
+function! s:mkGeneric(onSuccess_fname, ...)
+    let req = { 'ok': function('s:generic_response'),
+                \ 'on_success': function(a:onSuccess_fname) }
+    let extra_args = get(a:000, 0, {})
+    return extend(req, extra_args)
+endfunction
+
+function! s:PrintToBufferResponse(req, response)
+    " re-add explicit newlines
+    call IWrite(printf('%s', a:response))
+endfunction
+
+let s:print_response = s:mkGeneric('s:PrintToBufferResponse')
+" }}}
+
+" {{{ Reloading
 function! IdrisReload(q)
   w
   let file = expand("%:p")
@@ -445,7 +461,8 @@ function! s:IdrisReloadGuardResponse(reaction, file, req, command)
         " echoerr a:command[1]
     endif
 endfunction
-
+" }}}
+" {{{ *print info
 function! s:CurrWordInfo(command)
     let word = s:currentQueryObject()
     call s:IdrisCmd(s:InAnyIdris, a:command, word, s:print_response)
@@ -474,27 +491,22 @@ let s:last_namespace = ""
 function! IdrisBrowseNamespace()
   if IdrisReloadGuard(function("IdrisBrowseNamespace"))
     let word = expand("<cWORD>")
-    " At least one division, and each sub-namespace starts with a capital
+    " At least one division, and each submodule starts with a capital
     if word =~ '[A-Z]\w*\.\([A-Z]\w*\.\)*\w*'
         " cursor on a namespace
         let s:last_namespace = word
     else
-        " not over namespace; show last used
+        " not over namespace; re-browse last namespace we looked at
         let word = s:last_namespace
     endif
     call s:IdrisCmd(s:InIdris2, "browse-namespace", word, s:print_response)
   endif
 endfunction
-
-function! s:ReplaceWordResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        execute "normal ciW" . printf("%s", text)
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
+" }}}
+" {{{ Replace word
+function! s:ReplaceWordResponse(req, response)
+    let text = a:response[0]
+    execute "normal ciW" . printf("%s", text)
 endfunction
 
 function! IdrisProofSearch(hint)
@@ -507,32 +519,41 @@ function! IdrisProofSearch(hint)
         else
             let hints = split(input ("Hints: "), ',')
         endif
-        call s:IdrisCmd(s:InAnyIdris, "proof-search", cline, word, hints, {'ok':function("s:ReplaceWordResponse")})
+        call s:IdrisCmd(s:InAnyIdris, "proof-search", cline, word, hints, s:mkGeneric("s:ReplaceWordResponse"))
     endif
 endfunction
-
-function! s:LemmaResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let vals = split(a:command[1], '')
-        let typeDec = vals[0]
-        let useSite = vals[1]
-        execute 'normal ciW' . printf('%s', useSite)
-        execute 'normal {Oo' . printf('%s', typeDec)
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
+"}}}
+" {{{ Lemmas
+function! s:LemmaResponse(req, response)
+    let typeDec = a:response[0]
+    let useSite = a:response[1]
+    execute 'normal ciW' . printf('%s', useSite)
+    execute 'normal {Oo' . printf('%s', typeDec)
 endfunction
 
 function! IdrisMakeLemma()
     if IdrisReloadGuard(function("IdrisMakeLemma"))
         let cline = line(".")
         let word = s:currentQueryObject()
-        call s:IdrisCmd(s:InAnyIdris, "make-lemma", cline, word, {'ok':function("s:LemmaResponse")})
+        call s:IdrisCmd(s:InAnyIdris, "make-lemma", cline, word, s:mkGeneric("s:LemmaResponse"))
     endif
 endfunction
 
+function! s:SmallLemmaResponse(req, response)
+    let typeDec = a:response[-1]
+    execute 'normal F?x'
+    execute 'normal {Oo' . printf('%s', typeDec)
+endfunction
+
+function! IdrisMakeSmallLemma()
+    if IdrisReloadGuard(function("IdrisMakeSmallLemma"))
+        let cline = line(".")
+        let word = s:currentQueryObject()
+        call s:IdrisCmd(s:InAnyIdris, "type-of", word, s:mkGeneric("s:SmallLemmaResponse"))
+    endif
+endfunction
+" }}}
+" {{{ unimplemented
 " function! IdrisRefine()
 "   let view = winsaveview()
 "   w
@@ -570,25 +591,18 @@ endfunction
 "     endif
 "   endif
 " endfunction
-
-function! s:ReplaceLineResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        let resp = split(text, '')
-        call append(a:req.cline, resp)
-        execute a:req.cline . 'delete'
-        call search(a:req.cursor_on)
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
+" }}}
+" {{{ *replace line
+function! s:ReplaceLine(req, response)
+    call append(a:req.cline, a:response)
+    execute a:req.cline . 'delete'
+    call search(a:req.cursor_on)
 endfunction
 
 function s:ReplaceLineCmd(command, cursor_on)
     let cline = line('.')
     let word = s:currentQueryObject()
-    let req = { 'ok':function("s:ReplaceLineResponse"), 'cline':cline, 'cursor_on':(a:cursor_on) }
+    let req = s:mkGeneric("s:ReplaceLine", {'cline':cline, 'cursor_on':(a:cursor_on) })
     call s:IdrisCmd(s:InAnyIdris, a:command, cline, word, req)
 endfunction
 
@@ -609,17 +623,11 @@ function! IdrisMakeCase()
       call s:ReplaceLineCmd("make-case", "_")
   endif
 endfunction
-
-function! s:AddClauseResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        normal }b
-        call append(line('.'), split(text, ''))
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
+" }}}
+" {{{ Add Clause
+function! s:AddClauseResponse(req, response)
+    normal }b
+    call append(line('.'), a:response)
     call search("?")
 endfunction
 
@@ -627,33 +635,26 @@ function! IdrisAddClause(proof)
   if IdrisReloadGuard(function("IdrisAddClause", [a:proof]))
     let cline = line(".")
     let word = expand("<cword>")
-    if (a:proof==0)
-      call s:IdrisCmd(s:InAnyIdris, "add-clause", cline, word, {'ok':function("s:AddClauseResponse"), 'cline':cline})
-    else
-      call s:IdrisCmd(s:InAnyIdris, "add-proof-clause", cline, word, {'ok':function("s:AddClauseResponse"), 'cline':cline})
-    endif
+    let command = (a:proof==0) ? "add-clause" : "add-proof-clause"
+    call s:IdrisCmd(s:InAnyIdris, command, cline, word, s:mkGeneric("s:AddClauseSuccess", {'cline':cline}))
   endif
 endfunction
-
+" }}}
+" {{{ Eval
 function! s:EvalResponse(req, command)
-    let name = a:command[0]['command']
-    if name == 'ok'
-        let text = a:command[1]
-        call IWrite(printf("%s", ' = '.text))
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
-    endif
+    let text = a:command[0]
+    call IWrite(a:req.expr . ' = ')
+    call IAppend(text)
 endfunction
 
 function! IdrisEval()
   if IdrisReloadGuard(function("IdrisEval"))
      let expr = input ("Expression: ")
-      call s:IdrisCmd(s:InAnyIdris, "interpret", expr, {'ok':function("s:EvalResponse")})
+      call s:IdrisCmd(s:InAnyIdris, "interpret", expr, s:mkGeneric("s:EvalResponse", {'expr':expr}))
       "TODO : Prints `it`, but not `stdout`
   endif
 endfunction
-
+" }}}
 " }}}
 " }}}
 
