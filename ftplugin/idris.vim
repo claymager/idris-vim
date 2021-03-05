@@ -516,11 +516,9 @@ function! s:LemmaResponse(req, command)
     if name == 'ok'
         let vals = split(a:command[1], '')
         let typeDec = vals[0]
-        let use = vals[1]
-        call IAppend(printf("%s", vals))
-        " [{'command': 'metavariable-lemma'},
-        "     [{'command': 'replace-metavariable'}, 'ohetui k'],
-        "     [{'command': 'definition-type'}, 'ohetui : (k : Nat) -> Nat']]
+        let useSite = vals[1]
+        execute 'normal ciW' . printf('%s', useSite)
+        execute 'normal {Oo' . printf('%s', typeDec)
     else
         let text = a:command[1]
         call IAppend(printf("%s", text))
