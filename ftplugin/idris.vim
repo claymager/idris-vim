@@ -406,7 +406,7 @@ function! s:generic_response(req, command)
     if name == 'ok'
         let cmd = a:command[1]
         let response = s:IsList(cmd) ? cmd : split(cmd, '')
-        call a:req.on_success(a:req, cmd)
+        call a:req.on_success(a:req, response)
     else
         let text = a:command[1]
         call IAppend(printf("%s", text))
@@ -422,7 +422,7 @@ endfunction
 
 function! s:PrintToBufferResponse(req, response)
     " re-add explicit newlines
-    call IWrite(printf('%s', a:response))
+    call IWrite(join(a:response, ''))
 endfunction
 
 let s:print_response = s:mkGeneric('s:PrintToBufferResponse')
@@ -624,7 +624,7 @@ function! IdrisMakeCase()
   endif
 endfunction
 " }}}
-" {{{ Add Clause
+" {{{ *insert lines
 function! s:AddClauseResponse(req, response)
     normal }b
     call append(line('.'), a:response)
@@ -636,7 +636,21 @@ function! IdrisAddClause(proof)
     let cline = line(".")
     let word = expand("<cword>")
     let command = (a:proof==0) ? "add-clause" : "add-proof-clause"
-    call s:IdrisCmd(s:InAnyIdris, command, cline, word, s:mkGeneric("s:AddClauseSuccess", {'cline':cline}))
+    call s:IdrisCmd(s:InAnyIdris, command, cline, word, s:mkGeneric("s:AddClauseResponse", {'cline':cline}))
+  endif
+endfunction
+
+function! s:GenDefResponse(req, response)
+    normal }b
+    call append(line('.'), a:response)
+    normal }
+endfunction
+
+function! IdrisGenerateDef()
+  if IdrisReloadGuard(function("IdrisGenerateDef"))
+    let cline = line(".")
+    let word = expand("<cword>")
+    call s:IdrisCmd(s:InAnyIdris, "generate-def", cline, word, s:mkGeneric("s:GenDefResponse", {'cline':cline}))
   endif
 endfunction
 " }}}
@@ -663,6 +677,7 @@ nnoremap <buffer> <silent> <LocalLeader>t :call IdrisShowType()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>r :call IdrisReload(0)<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>c :call IdrisCaseSplit()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>d 0:call search(":")<ENTER>b:call IdrisAddClause(0)<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>g :call IdrisGenerateDef()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>b 0:call IdrisAddClause(0)<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>m :call IdrisAddMissing()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>md 0:call search(":")<ENTER>b:call IdrisAddClause(1)<ENTER>
@@ -674,7 +689,7 @@ nnoremap <buffer> <silent> <LocalLeader>e :call IdrisEval()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>w 0:call IdrisMakeWith()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>mc :call IdrisMakeCase()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>i 0:call IdrisResponseWin()<ENTER>
-nnoremap <buffer> <silent> <LocalLeader>hh :call IdrisShowDoc()<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>h :call IdrisShowDoc()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>n :call IdrisBrowseNamespace()<ENTER>
 " Missing in engine
 " nnoremap <buffer> <silent> <LocalLeader>d :call IdrisPrintDef()<ENTER>
