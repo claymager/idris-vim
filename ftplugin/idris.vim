@@ -31,6 +31,10 @@ else
     let s:idris_prompt = "idris --ide-mode"
 endif
 
+if !exists("g:IdrDebugMsg")
+    let g:IdrDebugMsg = 1
+endif
+
 function! IdrisDocFold(lineNum)
   let line = getline(a:lineNum)
 
@@ -72,6 +76,9 @@ endfunction
 
 function! s:IdrisHandle(channel, msg, event)
   let s:output .= join(a:msg, '')
+  if g:IdrDebugMsg
+      echom "REC: ".s:output
+  endif
   while 6 <= strlen(s:output)
     let kount = str2nr(strpart(s:output, 0, 6), 16)
     if kount + 6 <= strlen(s:output)
@@ -187,6 +194,9 @@ endfunction
 " Protocol encoding/decoding routines
 function! s:Write6HexMessage(msg)
     let kount = printf('%06x', strlen(a:msg))
+    if g:IdrDebugMsg
+        echom "SEND:".kount.a:msg
+    endif
     call chansend(s:job, kount . a:msg)
 endfunction
 
