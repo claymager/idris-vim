@@ -428,7 +428,11 @@ endfunction
 
 function! s:PrintToBufferResponse(req, response)
     " re-add explicit newlines
-    call IWrite(join(a:response, ''))
+    let text = join(a:response, '')
+    if strlen(text) == 0
+        let text = "ok"
+    endif
+    call IWrite(text)
 endfunction
 
 let s:print_response = s:mkGeneric('s:PrintToBufferResponse')
