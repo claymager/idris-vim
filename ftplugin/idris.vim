@@ -413,9 +413,9 @@ function! s:generic_response(req, command)
         let cmd = a:command[1]
         let response = s:IsList(cmd) ? cmd : split(cmd, '')
         call a:req.on_success(a:req, response)
-    else
-        let text = a:command[1]
-        call IAppend(printf("%s", text))
+    " else " Idris errors: handled elsewhere
+        " let text = a:command[1]
+        " call IAppend(printf("%s", text))
     endif
 endfunction
 
