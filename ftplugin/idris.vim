@@ -104,6 +104,10 @@ function! IdrisConnect()
         return 0
     endif
     let s:job = jobstart(s:idris_prompt, s:callbacks)
+    if s:InIdris2
+        " a bit of an abuse
+        call IdrisSendMessage([{'command': "enable-syntax :False"}])
+    endif
 endfunction
 
 function! IdrisReconnect(prompt)
