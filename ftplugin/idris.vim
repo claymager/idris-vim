@@ -641,7 +641,11 @@ function! IdrisAddClause(proof)
   if IdrisReloadGuard(function("IdrisAddClause", [a:proof]))
     let cline = line(".")
     let word = expand("<cword>")
-    let command = (a:proof==0) ? "add-clause" : "add-proof-clause"
+    if a:proof != 0 && s:protocol_version == 1
+        let command = "add-proof-clause"
+    else
+        let command = "add-clause"
+    endif
     call s:IdrisCmd(s:InAnyIdris, command, cline, word, s:mkGeneric("s:AddClauseResponse", {'cline':cline}))
   endif
 endfunction
