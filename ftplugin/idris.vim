@@ -427,9 +427,11 @@ function! s:generic_response(req, command)
         let cmd = a:command[1]
         let response = s:IsList(cmd) ? cmd : split(cmd, '')
         call a:req.on_success(a:req, response)
-    " else " Idris errors: handled elsewhere
-        " let text = a:command[1]
-        " call IAppend(printf("%s", text))
+    elseif name == "error"
+        let text = s:filterErrors(a:command[1])
+        call IWrite(text)
+    else
+        echom "unknown idris-response: ".name
     endif
 endfunction
 
