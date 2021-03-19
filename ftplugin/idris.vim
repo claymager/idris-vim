@@ -117,6 +117,12 @@ function! IdrisDisconnect()
     let s:after_connection = []
 endfunction
 " }}}
+function! s:filterErrors(text)
+    " add line breaks to make errors more readable
+    let text = substitute(a:text, '\.idr:[-0-9:]\{4,}\.\zs \zeWhen', '', '')
+    return text
+endfunction
+
 
 " {{{ Message syntax
 " Message handling
@@ -156,7 +162,7 @@ function! s:IdrisMessage(msg)
     elseif name == 'set-prompt' && s:IsString(a:msg[1])
         call IAppend(printf("[%s]", a:msg[1]))
     elseif name == 'warning'
-        call IAppend(printf("%s:%d: %s", a:msg[1][0], a:msg[1][1][0], a:msg[1][3]))
+        call IAppend(s:filterErrors(a:msg[1][3]))
     elseif name == 'write-string'
         call IAppend(printf("%s", a:msg[1]))
     else
