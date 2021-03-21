@@ -349,6 +349,7 @@ function! IdrisResponseWin()
     b idris-response
     let g:idris_respwin = "active"
     set buftype=nofile
+    set bufhidden=hide
     wincmd k
   elseif (bufexists("idris-response") && g:idris_respwin == "hidden")
     botright 10split
