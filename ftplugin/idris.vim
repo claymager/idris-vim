@@ -498,9 +498,14 @@ function! s:CurrWordInfo(command)
     call s:IdrisCmd(s:InAnyIdris, a:command, word, s:print_response)
 endfunction
 
-function! IdrisShowType()
-  if IdrisReloadGuard(function("IdrisShowType"))
-    call s:CurrWordInfo("type-of")
+function! IdrisShowType(typeAt)
+  if IdrisReloadGuard(function("IdrisShowType", [a:typeAt]))
+    let l:word = s:currentQueryObject()
+    if a:typeAt
+        call s:IdrisCmd(s:InIdris2, "type-of", l:word, line('.'), col('.'), s:print_response)
+    else
+        call s:IdrisCmd(s:InAnyIdris, "type-of", l:word, s:print_response)
+    endif
   endif
 endfunction
 
@@ -707,7 +712,8 @@ endfunction
 " }}}
 
 " {{{ Key maps
-nnoremap <buffer> <silent> <LocalLeader>t :call IdrisShowType()<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>t :call IdrisShowType(1)<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>T :call IdrisShowType(0)<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>r :call IdrisReload(0)<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>c :call IdrisCaseSplit()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>d 0:call search(":")<ENTER>b:call IdrisAddClause(0)<ENTER>
