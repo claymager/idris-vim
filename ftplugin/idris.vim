@@ -75,10 +75,13 @@ function! IdrisPending()
 endfunction
 
 function! s:IdrisHandle(channel, msg, event)
-  let s:output .= join(a:msg, '')
   if g:IdrDebugMsg
-      echom "REC: ".s:output
+      echom "REC: "
+      for line in a:msg
+          echom line
+      endfor
   endif
+  let s:output .= join(a:msg, '')
   while 6 <= strlen(s:output)
     let kount = str2nr(strpart(s:output, 0, 6), 16)
     if kount + 6 <= strlen(s:output)
@@ -722,6 +725,9 @@ nnoremap <buffer> <silent> <LocalLeader>mc :call IdrisMakeCase()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>i 0:call IdrisResponseWin()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>h :call IdrisShowDoc()<ENTER>
 nnoremap <buffer> <silent> <LocalLeader>n :call IdrisBrowseNamespace()<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>q :quitall<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>ad :call IdrisReconnect(g:idris_dev_prompt)<ENTER>
+nnoremap <buffer> <silent> <LocalLeader>ai :call IdrisReconnect(g:idris_default_prompt)<ENTER>
 " Missing in engine
 " nnoremap <buffer> <silent> <LocalLeader>d :call IdrisPrintDef()<ENTER>
 
