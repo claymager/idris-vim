@@ -448,11 +448,12 @@ endfunction
 
 function! s:PrintToBufferResponse(req, response)
     " re-add explicit newlines
-    let text = join(a:response, '')
-    if strlen(text) == 0
-        let text = "ok"
+    let l:text = join(a:response, '')
+    let l:text = substitute(l:text, '\\\\', '\\', '')
+    if strlen(l:text) == 0
+        let l:text = "ok"
     endif
-    call IWrite(text)
+    call IWrite(l:text)
 endfunction
 
 let s:print_response = s:mkGeneric('s:PrintToBufferResponse')
@@ -695,14 +696,16 @@ endfunction
 " }}}
 " {{{ Eval
 function! s:EvalResponse(req, command)
-    let text = a:command[0]
-    call IWrite(a:req.expr . ' = ')
-    call IAppend(text)
+    let l:text = a:command[0]
+    let l:expr = substitute(a:req.expr, '\\"', '"', 'g')
+    call IWrite(l:expr . ' = ')
+    call IAppend(l:text)
 endfunction
 
 function! IdrisEval()
   if IdrisReloadGuard(function("IdrisEval"))
-     let expr = input ("Expression: ")
+      let expr = input ("Expression: ")
+      let expr = substitute(expr, '"', '\\"', 'g')
       call s:IdrisCmd(s:InAnyIdris, "interpret", expr, s:mkGeneric("s:EvalResponse", {'expr':expr}))
       "TODO : Prints `it`, but not `stdout`
   endif
